@@ -1,0 +1,25 @@
+{
+  "name": "qa-template",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Universal QA template — Playwright + Lighthouse + axe + GitHub Actions. Drop-in tests for any web project.",
+  "scripts": {
+    "test": "playwright test",
+    "test:smoke": "playwright test tests/smoke.spec.ts",
+    "test:a11y": "playwright test tests/a11y.spec.ts",
+    "test:visual": "playwright test tests/visual.spec.ts",
+    "test:visual:update": "playwright test tests/visual.spec.ts --update-snapshots",
+    "test:ui": "playwright test --ui",
+    "report": "playwright show-report",
+    "lighthouse": "lhci autorun",
+    "install:browsers": "playwright install --with-deps"
+  },
+  "devDependencies": {
+    "@axe-core/playwright": "^4.10.0",
+    "@lhci/cli": "^0.14.0",
+    "@playwright/test": "^1.48.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
