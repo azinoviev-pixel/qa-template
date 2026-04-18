@@ -36,7 +36,7 @@ jobs:
           BASE_URL: ${{ vars.BASE_URL }}
         run: |
           # browserstack.yml uses userName/accessKey fields — inject via env vars
-          pnpm exec browserstack-node-sdk playwright test --config=./playwright.bs.config.js
+          pnpm exec browserstack-node-sdk playwright test --config=./playwright.bs.config.cjs
 
       - name: Upload Playwright artifacts
         uses: actions/upload-artifact@v4
@@ -48,3 +48,4 @@ jobs:
             playwright-report/
           retention-days: 14
           if-no-files-found: ignore
+
