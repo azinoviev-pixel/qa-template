@@ -2,7 +2,7 @@
 // Does NOT interfere with main playwright.config.ts (used by regular CI).
 const config = {
   testDir: "./tests-bs",
-  testMatch: "**/bstack_*.js",
+  testMatch: "**/bstack_*.cjs",
   timeout: 180_000,
   expect: { timeout: 15_000 },
   workers: 1,
