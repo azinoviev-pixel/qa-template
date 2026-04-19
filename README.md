@@ -1,170 +1,126 @@
 # qa-template
 
-> Drop-in QA infrastructure for web projects. Playwright + Lighthouse + axe-core + BrowserStack, wired up with GitHub Actions. **Ten-minute setup on any project.**
-
-[![QA](https://github.com/azinoviev-pixel/qa-template/actions/workflows/qa.yml/badge.svg)](https://github.com/azinoviev-pixel/qa-template/actions/workflows/qa.yml)
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Playwright](https://img.shields.io/badge/tests-Playwright-45ba4b)](https://playwright.dev)
-[![Lighthouse](https://img.shields.io/badge/perf-Lighthouse%20CI-orange)](https://github.com/GoogleChrome/lighthouse-ci)
+Drop-in QA infrastructure for any web project. **Playwright + Lighthouse + LambdaTest real devices**, wired up with GitHub Actions. Ten-minute setup on any repo.
 
 ---
 
-## What you get
+## What it does
 
-Five layers of automated QA — all running on every push to `main`:
+On every `git push` (or manual trigger, or weekly cron):
 
-| Layer | Tool | Cost | Finds |
-|---|---|---|---|
-| Smoke tests | Playwright | free | Page loads, JS errors, horizontal scroll, nav visibility |
-| Visual regression | Playwright screenshots | free | Unintended design drift via pixel diff |
-| Accessibility (WCAG 2 AA) | axe-core | free | Color contrast, missing labels, ARIA issues |
-| Performance + SEO + best practices | Lighthouse CI | free | LCP/CLS/TBT, meta tags, mixed content |
-| Real device testing | BrowserStack | $29/mo or trial | iOS Safari bugs that emulation misses |
+| Check | Where it runs | Time |
+|---|---|---|
+| **Playwright smoke** | 7 emulated devices (Desktop Chrome/Chrome1280/Safari, iPhone 14, iPhone SE, Pixel 7, iPad Pro) | ~4 min |
+| **Lighthouse CI** | Auto-discovered URLs from `sitemap.xml` — performance, a11y, SEO, best-practices budgets | ~3 min |
+| **LambdaTest real devices** | 6 real desktop browsers (macOS Chrome/Safari/Firefox + Windows 11 Chrome/Edge/Firefox) × all sitemap URLs | ~2.5 min |
 
-Tests run on **8 emulated devices** (1920 / 1440 / 1280 desktop, Safari, iPhone 14/SE, Pixel 7, iPad Pro) plus **5 real devices** via BrowserStack (weekly).
+**Each smoke check asserts per page:**
+- HTTP 200 (no 4xx/5xx)
+- No JS errors in console
+- `nav`/`header` visible
+- Forms accept file uploads
+- Input font-size ≥16px (iOS zoom prevention)
+
+Result: either everything green ✅, or a precise failure (device + page + reason).
 
 ---
 
-## Quick start — 3 minutes
-
-### One-liner
+## Install on a new project
 
 ```bash
+# One-liner (from your project root, must be a git repo)
 curl -fsSL https://raw.githubusercontent.com/azinoviev-pixel/qa-template/main/install.sh | bash
 ```
 
-### Or manual
+This copies workflows + tests + configs into your project.
 
-```bash
-npx degit azinoviev-pixel/qa-template tests-qa
-cd tests-qa
-pnpm install
-pnpm exec playwright install --with-deps
+Then in GitHub repo Settings:
 
-# Edit tests/smoke.spec.ts → PAGES array with your routes
-# Then:
-BASE_URL=https://yoursite.com pnpm test
-```
+| Kind | Name | Value |
+|---|---|---|
+| Variable | `BASE_URL` | `https://your-site.com` |
+| Secret | `LT_USERNAME` | your LambdaTest username |
+| Secret | `LT_ACCESS_KEY` | your LambdaTest access key |
 
-Full setup guide: [INSTALL.md](INSTALL.md)
+Push anything to `main` → CI runs automatically.
 
 ---
 
-## Repository structure
+## Stack
+
+| Layer | Tool | Why |
+|---|---|---|
+| Functional smoke | Playwright Test Runner | 7 emulated device profiles, parallel |
+| Performance/a11y/SEO | `@lhci/cli` | Auto-discovers URLs from `sitemap.xml`, asserts per-page budgets |
+| Real desktop browsers | LambdaTest free tier | 6 real browsers (macOS Chrome/Safari/Firefox + Win11 Chrome/Edge/Firefox). Prevents Safari-only bugs |
+| Real mobile (optional) | LambdaTest $199/mo Automation plan | 10 000+ real iPhone/Android — not enabled by default (paid) |
+
+---
+
+## Files
 
 ```
 qa-template/
 ├── .github/workflows/
-│   ├── qa.yml                    # Playwright + Lighthouse (every push + daily)
-│   └── browserstack.yml          # Real devices (weekly + manual)
+│   ├── qa.yml                    # Playwright + Lighthouse (push + schedule + dispatch)
+│   └── lambdatest.yml            # Real devices (weekly + manual)
+├── scripts/
+│   └── lhci-discover.mjs         # Auto-find URLs from sitemap.xml, write lighthouserc.json
 ├── tests/
-│   ├── smoke.spec.ts             # Page loads, JS errors, h-scroll, nav
-│   ├── a11y.spec.ts              # WCAG 2 AA via axe
-│   └── visual.spec.ts            # Pixel diff regression
-├── tests-bs/
-│   └── bstack_smoke.js           # BrowserStack (single-context mobile-compatible)
-├── playwright.config.ts          # 8 device profiles (emulated)
-├── playwright.bs.config.js       # CommonJS config for BrowserStack SDK
-├── browserstack.yml              # 5 real device platforms
-├── lighthouserc.json             # Lighthouse budgets (perf/a11y/SEO/best-practices)
-├── install.sh                    # One-liner installer
-├── package.json
-├── INSTALL.md                    # Detailed setup guide
-├── CUSTOMIZATION.md              # Per-framework recipes
-├── ARCHITECTURE.md               # Why each tool
-├── CHANGELOG.md                  # Version history
-└── README.md                     # This file
+│   └── smoke.spec.ts             # Page load, JS errors, nav, form, font-size
+├── tests-lt/
+│   └── lt_smoke.cjs              # 6 real desktop browsers via chromium.connect()
+├── playwright.config.ts          # 7 emulated devices
+├── playwright.lt.config.cjs      # LambdaTest workers config
+├── lighthouserc.json             # Budget thresholds (a11y ≥90, SEO ≥90, perf ≥85)
+└── install.sh                    # One-liner installer
 ```
 
 ---
 
-## What each workflow does
-
-### `qa.yml` — every push / PR / daily
-
-- **Triggers:** push to main, PR to main, daily 06:00 UTC, manual dispatch
-- **Playwright job:** install browsers → run tests on 8 devices → upload HTML report
-- **Lighthouse job:** run lhci autorun → check perf/a11y/SEO budgets
-
-Badges show on every commit. Failures block merges (if branch protection enabled).
-
-### `browserstack.yml` — weekly / manual
-
-- **Triggers:** Monday 07:00 UTC, manual dispatch
-- **Real-devices job:** install browserstack-node-sdk → run smoke on 5 real devices
-
-Conservative schedule preserves trial/paid minutes. Each run uses ~5–10 min of BrowserStack allowance.
-
----
-
-## Daily commands
+## Manual trigger
 
 ```bash
-pnpm test                       # Run everything locally (~2 min on 8 devices)
-pnpm test:smoke                 # Smoke only
-pnpm test:a11y                  # Accessibility only
-pnpm test:visual                # Visual regression
-pnpm test:visual:update         # Update baselines (after intentional design changes)
-pnpm test:ui                    # Interactive Playwright UI
-pnpm report                     # Open last HTML report
-pnpm lighthouse                 # Run Lighthouse CI locally
+# Playwright + Lighthouse
+gh workflow run qa.yml -R owner/repo
+# Real devices
+gh workflow run lambdatest.yml -R owner/repo
+```
+
+Or via API:
+
+```bash
+curl -X POST -H "Authorization: token $GH_TOKEN" \
+  https://api.github.com/repos/owner/repo/actions/workflows/qa.yml/dispatches \
+  -d '{"ref":"main"}'
 ```
 
 ---
 
-## Reading failures
+## How results flow
 
-| Failure | Where to look |
-|---|---|
-| Smoke test fails | `pnpm report` → HTML with video + screenshots + trace |
-| a11y violations | Check test output for rule IDs, each has a WCAG spec link |
-| Visual regression | Report shows expected / actual / diff — compare to decide if intentional |
-| Lighthouse budget miss | CI logs contain public report URL valid for 7 days |
-| BrowserStack fails | Dashboard at automate.browserstack.com has video per session |
+1. Workflow runs → GitHub Actions logs pass/fail per device per page
+2. Read via `GET /repos/{owner}/{repo}/actions/runs/{run_id}/logs` (returns zip)
+3. Grep for `N passed` / device names / failure messages
+4. If green — nothing to do. If red — log has exact failure location.
 
----
-
-## Tuning for your project
-
-- **Fewer devices?** Trim `projects[]` in `playwright.config.ts` down to what you care about
-- **Lighthouse budgets too strict?** Adjust thresholds in `lighthouserc.json`
-- **BrowserStack too expensive?** Remove `browserstack.yml` workflow; emulation alone finds ~80% of bugs
-- **Auth-gated pages?** Use Playwright's `storageState` pattern — add to `playwright.config.ts` `use.storageState`
-- **Local dev server for tests?** Set `BASE_URL=http://localhost:5173` in `.env.local`
-
-See [CUSTOMIZATION.md](CUSTOMIZATION.md) for recipes.
+Aggregate result, no need to watch videos or dashboards unless debugging.
 
 ---
 
-## Known constraints
+## Real mobile devices (when you want them)
 
-- **BrowserStack SDK is flaky at scale.** Keep `browserstack.yml` to 5–7 platforms max.
-- **Mobile real devices = single browser context.** BrowserStack tests use one `test()` with a page loop, not test-per-page.
-- **Visual regression baselines are platform-specific.** Generate them on the same OS as your CI (Linux for GitHub Actions). First run will always fail until baselines exist.
-- **BrowserStack trial is 100 minutes total** (not per month). Schedule weekly to stretch it.
+LambdaTest free tier blocks real mobile. To unlock:
 
----
+1. Upgrade to **Real Device Plus Automation Cloud** — $199/mo annual (~$2388/year)
+2. Credentials stay the same — just billing tier changes
+3. Add `tests-lt/lt_mobile.cjs` with `_android.connect()` (Android) or iOS webkit endpoint
+4. Box gets iPhone 14/15/SE, Galaxy S23/S24, Pixel 8, iPad Pro
 
-## Skills integration (Claude Code)
-
-If you use Claude Code, this template is wired into the `qa-setup` skill. In any project just say:
-
-```
-настрой QA в этом проекте
-```
-
-Claude will pull the template, adapt routes, configure GitHub, and trigger the first run — about 10 minutes end to end.
-
-See `~/.claude/skills/qa-setup/SKILL.md` for the skill definition.
-
----
-
-## Contributing
-
-This template evolves as real projects use it. If you find a pattern that helps, open a PR. See [ARCHITECTURE.md](ARCHITECTURE.md) for the design decisions.
+Not recommended until you have ≥3 paying retainer clients — single project doesn't amortize $2388/year.
 
 ---
 
 ## License
 
-MIT — use in any project, public or private. See [LICENSE](LICENSE).
+MIT
