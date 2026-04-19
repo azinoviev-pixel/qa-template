@@ -17,27 +17,20 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
-
       - uses: pnpm/action-setup@v4
         with:
           version: 9
-        with:
-          version: 9
-
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-
       - run: pnpm install --no-frozen-lockfile
-
       - name: Install browsers
         run: pnpm exec playwright install --with-deps
-
       - name: Run Playwright
         env:
           BASE_URL: ${{ vars.BASE_URL }}
-        run: pnpm test
-
+          CI: "1"
+        run: pnpm exec playwright test
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -49,23 +42,20 @@ jobs:
     name: Lighthouse CI
     if: vars.BASE_URL != ''
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
-
       - uses: pnpm/action-setup@v4
         with:
           version: 9
-        with:
-          version: 9
-
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-
       - run: pnpm install --no-frozen-lockfile
-
-      - name: Run Lighthouse
+      - name: Discover URLs from sitemap.xml
         env:
-          LHCI_URL: ${{ vars.BASE_URL }}
-        run: pnpm exec lhci autorun
+          BASE_URL: ${{ vars.BASE_URL }}
+          LHCI_URLS: ${{ vars.LHCI_URLS }}
+        run: node scripts/lhci-discover.mjs
+      - name: Run Lighthouse
+        run: npx --yes @lhci/cli@0.14.x autorun
